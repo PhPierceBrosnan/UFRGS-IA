@@ -12,6 +12,8 @@ Copyright (C) 2013 by the PSVN Research Group, University of Alberta
 
 
 
+
+
 struct StateNode{
     state_t data;
     int hValue;
@@ -30,11 +32,25 @@ struct Comparator
 {
     bool operator()(const StateNode& lhs, const StateNode& rhs)
     {
-        return (lhs.hValue + lhs.cost) < (rhs.cost + rhs.hValue);
+        return (lhs.hValue + lhs.cost) > (rhs.cost + rhs.hValue);
     }
 };
 
+inline bool operator == (state_t const& lhs, state_t const& rhs)
+{
+    return !compare_states(&lhs, &rhs);
+}
 
+namespace std {
+  template <>
+  struct hash<state_t>
+  {
+    size_t operator()(const state_t & t) const
+    {
+      return hash_state(&t);
+    }
+  };
+}
 
 
 
@@ -93,7 +109,7 @@ int heuristic(state_t state){
     return value;
 }
 
-int testGoal(StateNode *head){
+int testGoal(const StateNode *head){
     if(is_goal(&(head->data))){
         return 1;
     }
@@ -122,16 +138,18 @@ void a_Star(state_t startState){
     int heu;
 
     
-
-    //while(!testGoal...)
-
+    int i = 0;
+    while(!testGoal(&fringe.top())){
+   // while(i < 5){
+        i++;
         state = fringe.top().data;
+        fringe.pop();
 
         //print_state(stdout, &state);
         //printf(" ");
         //heu = heuristic(state);
         //printf("%d", heu);
-       // printf("\n");
+        //printf("\n");
 
         init_fwd_iter( &iter, &state );  // initialize the child iterator 
         while( ( ruleid = next_ruleid( &iter ) ) >= 0 ) {
@@ -139,21 +157,13 @@ void a_Star(state_t startState){
 	        apply_fwd_rule( ruleid, &state, &child );
 
             
-            if(!visitedList.find(child)){
-                fringe.push(StateNode(child, heuristic(child), 1+head->cost));
+            if(visitedList.count(child) == 0){
+                fringe.push(StateNode(child, heuristic(child), 1+fringe.top().cost));
                 visitedList.emplace(child);
             }
         }
         
-        std::cout << "1- " << fringe.top().hValue + fringe.top().cost
-        fringe.pop();
-        std::cout << "2- " << fringe.top().hValue + fringe.top().cost
-        fringe.pop();
-        std::cout << "3- " << fringe.top().hValue + fringe.top().cost
-        fringe.pop();
-        std::cout << "4- " << fringe.top().hValue + fringe.top().cost
-        fringe.pop();
-    //}
+    }
 
     printf("sucess");
 
