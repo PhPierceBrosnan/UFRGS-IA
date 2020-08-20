@@ -9,7 +9,7 @@ Copyright (C) 2013 by the PSVN Research Group, University of Alberta
 #include <stack>
 
 #define  MAX_LINE_LENGTH 999 
-
+#define HAVE_BWD_MOVES
 
 
 
@@ -118,7 +118,9 @@ int testGoal(const StateNode *head){
     }
 }
 
-void a_Star(state_t startState){
+void a_Star(state_t startState, int *nodesExpanded){
+
+    
 
     std::priority_queue<StateNode, std::vector<StateNode>, Comparator> fringe;
     std::unordered_set<state_t> visitedList;
@@ -138,10 +140,13 @@ void a_Star(state_t startState){
     int heu;
 
     
-    int i = 0;
+    //int i = 0;
     while(!testGoal(&fringe.top())){
    // while(i < 5){
-        i++;
+        //i++;
+
+        *nodesExpanded = *nodesExpanded + 1;
+
         state = fringe.top().data;
         fringe.pop();
 
@@ -165,7 +170,7 @@ void a_Star(state_t startState){
         
     }
 
-    printf("sucess");
+ 
 
 }
 
@@ -173,32 +178,75 @@ void a_Star(state_t startState){
 
 int main( int argc, char **argv )
 {
+    clock_t begin_time = clock();
+    int nodesExpanded;
+    int initSteps = 4;
+    int maxSteps = 10;
+    int numInstances = 10;
+    ruleid_iterator_t bwdIter; // ruleid_terator_t is the type defined by the PSVN API successor/predecessor iterators.
+    int bwdruleid ; // an iterator returns a number identifying a rule
+    srand (time(NULL));
+
+    state_t child;
+
+
 // VARIABLES FOR INPUT
     char str[ MAX_LINE_LENGTH +1 ] ;
-    ssize_t nchars; 
+    
     state_t state; // state_t is defined by the PSVN API. It is the type used for individual states.
 
-
-
-// READ A LINE OF INPUT FROM stdin
-    printf("Please enter a state followed by ENTER: ");
-    if ( fgets(str, sizeof str, stdin) == NULL ) {
-	printf("Error: empty input line.\n");
-	return 0; 
-    }
+    
+    
 
 // CONVERT THE STRING TO A STATE
-    nchars = read_state( str, &state );
-    if (nchars <= 0) {
-	printf("Error: invalid state entered.\n");
-	return 0; 
+    read_state( "b 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15", &state );
+    
+
+
+    for(int i = initSteps;i <= maxSteps; i++){
+
+        clock_t begin_time = clock();
+        nodesExpanded = 0;
+
+        for(int j = 0; j < numInstances; j++){
+            
+            int steps = 0;
+            while(steps < i){
+
+                
+                steps++;
+
+                state_t children[4];
+                int arrayIndex = 0;
+
+                init_bwd_iter( &bwdIter, &state ); 
+                while( ( bwdruleid = next_ruleid( &bwdIter ) ) >= 0 ) {
+
+	                apply_bwd_rule( bwdruleid, &state, &children[arrayIndex]);
+                    arrayIndex++;
+
+                    
+
+                }
+                state = children[rand() % arrayIndex];
+
+                
+
+            }
+
+            
+            a_Star(state, &nodesExpanded);
+            
+        }
+
+        std::cout << "Número médio de nodos expandidos com profundidade " << i << ": " << nodesExpanded / numInstances << "\n";
+        std::cout << "Tempo médio com profundidade " << i << ": " << float( clock () - begin_time ) /  CLOCKS_PER_SEC / numInstances << "\n";
     }
+    
 
-    printf("The state you entered is: ");
-    print_state( stdout, &state );
-    printf("\n");
-
-    a_Star(state);
+    
+    
+    std::cout << "Nodes: " << nodesExpanded;
 
     return 0;
 } // end main
