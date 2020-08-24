@@ -7,6 +7,7 @@ Copyright (C) 2013 by the PSVN Research Group, University of Alberta
 #include <queue>
 #include <unordered_set>
 #include <stack>
+#include <climits>
 
 #define  MAX_LINE_LENGTH 999 
 #define HAVE_BWD_MOVES
@@ -33,6 +34,14 @@ struct Comparator
     bool operator()(const StateNode& lhs, const StateNode& rhs)
     {
         return (lhs.hValue + lhs.cost) > (rhs.cost + rhs.hValue);
+    }
+};
+
+struct Comparator2
+{
+    bool operator()(const StateNode& lhs, const StateNode& rhs)
+    {
+        return (lhs.hValue + lhs.cost) < (rhs.cost + rhs.hValue);
     }
 };
 
@@ -109,13 +118,123 @@ int heuristic(state_t state){
     return value;
 }
 
-int testGoal(const StateNode *head){
-    if(is_goal(&(head->data))){
+int testGoal(state_t state){
+    if(is_goal(&state)){
         return 1;
     }
     else{
         return 0;
     }
+}
+
+
+
+
+
+int search(std::stack<StateNode> path, std::unordered_set<state_t> visited, int bound, int *nodesExpanded){
+    StateNode node = path.top();
+    
+
+
+    //print_state(stdout, &node.data);
+    //printf("\n");
+
+    int aux;
+
+    *nodesExpanded = *nodesExpanded + 1;
+
+    int estimate = node.cost + node.hValue;
+
+    if(testGoal(node.data)){
+        return -1;
+    }
+
+    if(estimate > bound){ 
+        return estimate;
+    }
+
+
+    int min = INT_MAX;
+
+    state_t state;
+    state_t child;
+    ruleid_iterator_t iter; 
+    int ruleid ; 
+
+    state = node.data;
+
+
+    init_fwd_iter( &iter, &state );  // initialize the child iterator 
+    while( ( ruleid = next_ruleid( &iter ) ) >= 0 ) {
+
+	    apply_fwd_rule( ruleid, &state, &child );
+
+        std::priority_queue<StateNode, std::vector<StateNode>, Comparator> auxQueue;
+        
+        if(visited.count(child) == 0){
+            auxQueue.push(StateNode(child, heuristic(child), 1+ node.cost));
+            visited.insert(child);
+        }
+        //print_state(stdout, &child);
+        //printf("\n");
+        while(!auxQueue.empty()){
+            path.push(auxQueue.top());
+            aux = search(path, visited, bound, nodesExpanded);
+
+            if(aux == -1){
+                return -1;
+            }
+            if(aux < min){
+                min = aux;
+                //std::cout << "\nMin: " << min << "\n";
+            }
+            auxQueue.pop();
+            path.pop();
+        }
+        
+        
+    }
+    
+    return min;
+    
+
+}
+
+void IDA_Star(state_t startState, int *nodesExpanded){
+    
+
+    std::stack<StateNode> path;
+    std::unordered_set<state_t> visitedList;
+
+    path.push(StateNode(startState, heuristic(startState), 0));
+    visitedList.emplace(startState);
+
+    //cost
+    
+    int bound = heuristic(startState);
+
+
+    while(true){
+        *nodesExpanded = *nodesExpanded + 1; 
+  
+        //std::cout << " bound " << bound << "\n";
+
+        int aux = search(path, visitedList, bound, nodesExpanded);
+        
+        if (aux == -1){
+            break;
+        }
+        else if(aux == INT_MAX){
+            break;
+        }
+        else{
+            bound = aux;
+
+        } 
+        
+          
+    }
+
 }
 
 void a_Star(state_t startState, int *nodesExpanded){
@@ -136,12 +255,12 @@ void a_Star(state_t startState, int *nodesExpanded){
     state_t child;
     ruleid_iterator_t iter; // ruleid_terator_t is the type defined by the PSVN API successor/predecessor iterators.
     int ruleid ; // an iterator returns a number identifying a rule
-    int childCount;
-    int heu;
+    //int childCount;
+    //int heu;
 
     
     //int i = 0;
-    while(!testGoal(&fringe.top())){
+    while(!testGoal(fringe.top().data)){
    // while(i < 5){
         //i++;
 
@@ -150,8 +269,10 @@ void a_Star(state_t startState, int *nodesExpanded){
         state = fringe.top().data;
         fringe.pop();
 
+      
+
         //print_state(stdout, &state);
-        //printf(" ");
+        //printf("\n");
         //heu = heuristic(state);
         //printf("%d", heu);
         //printf("\n");
@@ -175,17 +296,19 @@ void a_Star(state_t startState, int *nodesExpanded){
 }
 
 
-
 int main( int argc, char **argv )
 {
     clock_t begin_time = clock();
-    int nodesExpanded;
-    int initSteps = 4;
-    int maxSteps = 10;
-    int numInstances = 10;
+    int nodesExpandedA_Star;
+    int nodesExpandedIDA_Star;
+    int initSteps = 70;
+    int maxSteps = 80;
+    int numInstances = 100;
     ruleid_iterator_t bwdIter; // ruleid_terator_t is the type defined by the PSVN API successor/predecessor iterators.
     int bwdruleid ; // an iterator returns a number identifying a rule
     srand (time(NULL));
+    float totalTimeA_Star;
+    float totalTimeIDA_Star;
 
     state_t child;
 
@@ -205,11 +328,14 @@ int main( int argc, char **argv )
 
     for(int i = initSteps;i <= maxSteps; i++){
 
-        clock_t begin_time = clock();
-        nodesExpanded = 0;
+        
+        nodesExpandedA_Star = 0;
+        nodesExpandedIDA_Star = 0;
+        totalTimeA_Star = 0;
+        totalTimeIDA_Star = 0;
 
         for(int j = 0; j < numInstances; j++){
-            
+            read_state( "b 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15", &state );
             int steps = 0;
             while(steps < i){
 
@@ -234,19 +360,28 @@ int main( int argc, char **argv )
 
             }
 
+            //print_state(stdout, &state);
+            //printf("\n");
+
+            begin_time = clock();
+            a_Star(state, &nodesExpandedA_Star);
+            totalTimeA_Star += float(clock() - begin_time);
             
-            a_Star(state, &nodesExpanded);
+            begin_time = clock();
+            IDA_Star(state, &nodesExpandedIDA_Star);
+            totalTimeIDA_Star += float(clock() - begin_time);
             
         }
-
-        std::cout << "Número médio de nodos expandidos com profundidade " << i << ": " << nodesExpanded / numInstances << "\n";
-        std::cout << "Tempo médio com profundidade " << i << ": " << float( clock () - begin_time ) /  CLOCKS_PER_SEC / numInstances << "\n";
+        std::cout << "\nA*: \n";
+        std::cout << "Número médio de nodos expandidos com profundidade " << i << ": " << nodesExpandedA_Star / numInstances << "\n";
+        std::cout << "Tempo médio com profundidade " << i << ": " << totalTimeA_Star /  CLOCKS_PER_SEC / numInstances << "\n";
+        
+        std::cout << "\nIDA*: \n";
+        std::cout << "Número médio de nodos expandidos com profundidade " << i << ": " << nodesExpandedIDA_Star / numInstances << "\n";
+        std::cout << "Tempo médio com profundidade " << i << ": " << totalTimeIDA_Star /  CLOCKS_PER_SEC / numInstances << "\n";
+        
     }
-    
 
-    
-    
-    std::cout << "Nodes: " << nodesExpanded;
 
     return 0;
 } // end main
