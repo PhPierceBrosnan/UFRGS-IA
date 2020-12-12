@@ -131,7 +131,7 @@ int testGoal(state_t state){
 
 
 
-int search(std::stack<StateNode> path, std::unordered_set<state_t> visited, int bound, int *nodesExpanded){
+int search(std::stack<StateNode> path, std::unordered_set<state_t> visited, int bound, int *nodesExpanded, int *totalHeuristic, int *solutionLength){
     StateNode node = path.top();
     
 
@@ -145,7 +145,10 @@ int search(std::stack<StateNode> path, std::unordered_set<state_t> visited, int 
 
     int estimate = node.cost + node.hValue;
 
+    *totalHeuristic = *totalHeuristic + node.hValue;
+
     if(testGoal(node.data)){
+        *solutionLength = node.cost;
         return -1;
     }
 
@@ -159,7 +162,7 @@ int search(std::stack<StateNode> path, std::unordered_set<state_t> visited, int 
     state_t state;
     state_t child;
     ruleid_iterator_t iter; 
-    int ruleid ; 
+    int ruleid; 
 
     state = node.data;
 
@@ -169,7 +172,7 @@ int search(std::stack<StateNode> path, std::unordered_set<state_t> visited, int 
 
 	    apply_fwd_rule( ruleid, &state, &child );
 
-        std::priority_queue<StateNode, std::vector<StateNode>, Comparator> auxQueue;
+        std::priority_queue<StateNode, std::vector<StateNode>, Comparator2> auxQueue;
         
         if(visited.count(child) == 0){
             auxQueue.push(StateNode(child, heuristic(child), 1+ node.cost));
@@ -179,7 +182,7 @@ int search(std::stack<StateNode> path, std::unordered_set<state_t> visited, int 
         //printf("\n");
         while(!auxQueue.empty()){
             path.push(auxQueue.top());
-            aux = search(path, visited, bound, nodesExpanded);
+            aux = search(path, visited, bound, nodesExpanded, totalHeuristic, solutionLength);
 
             if(aux == -1){
                 return -1;
@@ -200,26 +203,25 @@ int search(std::stack<StateNode> path, std::unordered_set<state_t> visited, int 
 
 }
 
-void IDA_Star(state_t startState, int *nodesExpanded){
+void IDA_Star(state_t startState, int *nodesExpanded, int *totalHeuristic, int *solutionLength){
     
 
     std::stack<StateNode> path;
     std::unordered_set<state_t> visitedList;
 
-    path.push(StateNode(startState, heuristic(startState), 0));
-    visitedList.emplace(startState);
-
     //cost
     
     int bound = heuristic(startState);
 
+    path.push(StateNode(startState, bound, 0));
+    visitedList.emplace(startState);
 
     while(true){
         *nodesExpanded = *nodesExpanded + 1; 
   
         //std::cout << " bound " << bound << "\n";
 
-        int aux = search(path, visitedList, bound, nodesExpanded);
+        int aux = search(path, visitedList, bound, nodesExpanded, totalHeuristic, solutionLength);
         
         if (aux == -1){
             break;
@@ -237,7 +239,7 @@ void IDA_Star(state_t startState, int *nodesExpanded){
 
 }
 
-void a_Star(state_t startState, int *nodesExpanded){
+int a_Star(state_t startState, int *nodesExpanded, int *totalHeuristic){
 
     
 
@@ -265,6 +267,7 @@ void a_Star(state_t startState, int *nodesExpanded){
         //i++;
 
         *nodesExpanded = *nodesExpanded + 1;
+        *totalHeuristic = *totalHeuristic + fringe.top().hValue;
 
         state = fringe.top().data;
         fringe.pop();
@@ -291,22 +294,29 @@ void a_Star(state_t startState, int *nodesExpanded){
         
     }
 
- 
+    return fringe.top().cost;
 
 }
 
 
 int main( int argc, char **argv )
 {
-    clock_t begin_time = clock();
-    int nodesExpandedA_Star;
-    int nodesExpandedIDA_Star;
-    int initSteps = 70;
-    int maxSteps = 80;
+    
+    int initSteps = 100;
+    int maxSteps = 100;
     int numInstances = 100;
     ruleid_iterator_t bwdIter; // ruleid_terator_t is the type defined by the PSVN API successor/predecessor iterators.
     int bwdruleid ; // an iterator returns a number identifying a rule
     srand (time(NULL));
+    clock_t begin_time = clock();
+    int auxSolutionLength;
+    int totalSolutionLengthIDA_Star;
+    int totalSolutionLengthA_Star;
+    int startStateHeuristicTotal;
+    int totalHeuristicA_Star;
+    int totalHeuristicIDA_Star;
+    int nodesExpandedA_Star;
+    int nodesExpandedIDA_Star;
     float totalTimeA_Star;
     float totalTimeIDA_Star;
 
@@ -323,18 +333,22 @@ int main( int argc, char **argv )
 
 // CONVERT THE STRING TO A STATE
     read_state( "b 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15", &state );
-    
 
+    for(int i = initSteps;i <= maxSteps; i+=10){
 
-    for(int i = initSteps;i <= maxSteps; i++){
-
-        
+        totalSolutionLengthA_Star = 0;
+        totalSolutionLengthIDA_Star = 0;
         nodesExpandedA_Star = 0;
         nodesExpandedIDA_Star = 0;
+        totalHeuristicA_Star = 0;
+        totalHeuristicIDA_Star = 0;
         totalTimeA_Star = 0;
         totalTimeIDA_Star = 0;
+        startStateHeuristicTotal = 0;
+        
 
         for(int j = 0; j < numInstances; j++){
+            begin_time = clock();
             read_state( "b 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15", &state );
             int steps = 0;
             while(steps < i){
@@ -345,7 +359,7 @@ int main( int argc, char **argv )
                 state_t children[4];
                 int arrayIndex = 0;
 
-                init_bwd_iter( &bwdIter, &state ); 
+                init_bwd_iter( &bwdIter, &state );
                 while( ( bwdruleid = next_ruleid( &bwdIter ) ) >= 0 ) {
 
 	                apply_bwd_rule( bwdruleid, &state, &children[arrayIndex]);
@@ -360,25 +374,36 @@ int main( int argc, char **argv )
 
             }
 
+            startStateHeuristicTotal = startStateHeuristicTotal + heuristic(state);
+
+            //std::cout << "tempo gerar estado: " << float(clock() - begin_time);
             //print_state(stdout, &state);
             //printf("\n");
 
             begin_time = clock();
-            a_Star(state, &nodesExpandedA_Star);
+            totalSolutionLengthA_Star = totalSolutionLengthA_Star + a_Star(state, &nodesExpandedA_Star, &totalHeuristicA_Star);
             totalTimeA_Star += float(clock() - begin_time);
             
             begin_time = clock();
-            IDA_Star(state, &nodesExpandedIDA_Star);
+            IDA_Star(state, &nodesExpandedIDA_Star, &totalHeuristicIDA_Star, &auxSolutionLength);
+            totalSolutionLengthIDA_Star = totalSolutionLengthIDA_Star + auxSolutionLength;
             totalTimeIDA_Star += float(clock() - begin_time);
             
         }
+
+        std::cout << "\nValor médio da heurística para os estados iniciais: " << startStateHeuristicTotal / numInstances << "\n";
+
         std::cout << "\nA*: \n";
         std::cout << "Número médio de nodos expandidos com profundidade " << i << ": " << nodesExpandedA_Star / numInstances << "\n";
         std::cout << "Tempo médio com profundidade " << i << ": " << totalTimeA_Star /  CLOCKS_PER_SEC / numInstances << "\n";
+        std::cout << "Valor médio da função heurística: " << totalHeuristicA_Star / nodesExpandedA_Star << "\n";
+        std::cout << "Tamanho médio das soluções: " << totalSolutionLengthA_Star / numInstances << "\n";
         
         std::cout << "\nIDA*: \n";
         std::cout << "Número médio de nodos expandidos com profundidade " << i << ": " << nodesExpandedIDA_Star / numInstances << "\n";
         std::cout << "Tempo médio com profundidade " << i << ": " << totalTimeIDA_Star /  CLOCKS_PER_SEC / numInstances << "\n";
+        std::cout << "Valor médio da função heurística: " << totalHeuristicIDA_Star / nodesExpandedIDA_Star << "\n";
+        std::cout << "Tamanho médio das soluções: " << totalSolutionLengthIDA_Star / numInstances << "\n";
         
     }
 
