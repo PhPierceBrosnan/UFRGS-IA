@@ -56,9 +56,25 @@ namespace std {
   {
     size_t operator()(const state_t & t) const
     {
-      return hash_state(&t);
+        return hash_state(&t);
+
+        /*char stringState[100];
+        sprint_state(stringState, 100, &t);
+        char * pch;
+        pch = strtok (stringState," ");
+        int counter = 1;
+        int hashValue = 0;
+        while (pch != NULL)
+        {
+            hashValue += atoi(pch) * counter;
+            pch = strtok (NULL, " ,.-");
+            counter++;
+        }
+
+        return hashValue; */
     }
   };
+  
 }
 
 
@@ -236,7 +252,7 @@ void IDA_Star(state_t startState, int *nodesExpanded, int *totalHeuristic, int *
         
           
     }
-
+    //std::cout << "Estados por bucket IDA*: " << visitedList.size()  << "\n";
 }
 
 int a_Star(state_t startState, int *nodesExpanded, int *totalHeuristic){
@@ -294,6 +310,8 @@ int a_Star(state_t startState, int *nodesExpanded, int *totalHeuristic){
         
     }
 
+    //std::cout << "Estados por bucket A*: " << visitedList.size() << "\n";
+
     return fringe.top().cost;
 
 }
@@ -302,7 +320,7 @@ int a_Star(state_t startState, int *nodesExpanded, int *totalHeuristic){
 int main( int argc, char **argv )
 {
     
-    int initSteps = 100;
+    int initSteps = 10;
     int maxSteps = 100;
     int numInstances = 100;
     ruleid_iterator_t bwdIter; // ruleid_terator_t is the type defined by the PSVN API successor/predecessor iterators.
@@ -333,6 +351,10 @@ int main( int argc, char **argv )
 
 // CONVERT THE STRING TO A STATE
     read_state( "b 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15", &state );
+
+    
+
+    
 
     for(int i = initSteps;i <= maxSteps; i+=10){
 
