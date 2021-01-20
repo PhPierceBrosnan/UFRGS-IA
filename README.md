@@ -1,2 +1,2 @@
 # UFRGS-IA
-AI Research
+AI Research on the 15-puzzle
